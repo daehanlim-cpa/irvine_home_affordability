@@ -1,0 +1,31 @@
+# Secrets — never commit. Credentials belong in Snowflake SECRET objects.
+.env
+.env.*
+!.env.example
+*.pem
+*.p8
+*.key
+*_key*
+*_rsa*
+credentials.json
+connections.toml
+
+# Verify gate stamp (local state, not shared)
+.verify-stamp
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Tooling
+.sqlfluff.cache
+.DS_Store
+*.log
+
+# Local scratch
+scratch/
+tmp/
