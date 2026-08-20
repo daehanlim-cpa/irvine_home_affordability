@@ -18,7 +18,7 @@
 golden_addresses:
 
   - id: woodbridge_no_cfd
-    address: "<REPLACE: a Woodbridge street address you know>"
+    address: "11 Bayview, Irvine, CA 92614"
     village_expected: WOODBRIDGE
     rationale: >
       Woodbridge was platted in the 1970s-80s, before CFD financing became
@@ -30,7 +30,7 @@ golden_addresses:
       cost_subscore_min: 75
 
   - id: great_park_high_cfd
-    address: "<REPLACE: a Great Park Neighborhoods address you know>"
+    address: "136 Charlie, Irvine, CA 92618"
     village_expected: GREAT_PARK
     rationale: >
       Newest large development, on the former El Toro base. Should show a
@@ -43,7 +43,7 @@ golden_addresses:
       construction_projects_min: 1
 
   - id: orchard_hills_environment
-    address: "<REPLACE: an Orchard Hills address you know>"
+    address: "68 Copper Mine, Irvine, CA 92602"
     village_expected: ORCHARD_HILLS
     rationale: >
       The village at the centre of the All American Asphalt odour dispute —
@@ -58,7 +58,7 @@ golden_addresses:
       environment_top_finding_contains: asphalt
 
   - id: northwood_established
-    address: "<REPLACE: a Northwood street address you know>"
+    address: "17 Ensueno W, Irvine, CA 92620"
     village_expected: NORTHWOOD
     rationale: >
       Established 1970s-90s village, mature, generally no Mello-Roos. Should
@@ -69,7 +69,7 @@ golden_addresses:
       cost_subscore_min: 70
 
   - id: portola_springs_high_cfd
-    address: "<REPLACE: a Portola Springs address you know>"
+    address: "194 Firefly, Irvine, CA 92618"
     village_expected: PORTOLA_SPRINGS
     rationale: >
       Among the highest CFD burdens in the city. Included alongside Great Park so
