@@ -126,6 +126,33 @@ Intent is not enforceable; a grep is.
 
 ---
 
+## Service directory findings (confirmed 2026-08-20)
+
+Read from `https://gis.cityofirvine.org/arcgis/rest/services`. Recorded here
+because the original registry was built on assumed service names, and three of
+them were wrong.
+
+**Confirmed present:**
+
+| Service | Type | Use |
+|---|---|---|
+| `ParcelClariti` | FeatureServer | Parcels + CFD. As assumed. |
+| `Composite` | **GeocodeServer** | Address resolution. Purpose-built; supersedes fuzzy address-point matching. |
+| `CIP` | MapServer only | Capital improvement projects. Not a FeatureServer as assumed. |
+| `RoadConstruction_ProEdit1` | FeatureServer | Road construction. Not previously known. |
+| `GPConstruction` | MapServer | Great Park construction. Not previously known. |
+| `HOADataEditor` | FeatureServer | HOA data — feeds the cost pillar. Not previously known. |
+| `Code_Enforcement_Cases` | FeatureServer | Phase 2. |
+| `DamInundation`, `Wildland_Urban_Interface` | MapServer | Phase 2 environment pillar. |
+| `Parks`, `Streets`, `Sidewalks`, `Preservation_Areas` | MapServer | Phase 2 amenities. |
+
+**Absent:** no `DevelopmentProjects` service. Private development and pending
+applications — the forward-looking half of the construction pillar — are not on
+this server. The City publishes a Development Projects Map, so the data likely
+sits in ArcGIS Online (`services.arcgis.com`) rather than the on-prem server.
+Tracked as an open gap; the construction pillar currently sees city capital
+projects only, which understates what a buyer wants to know.
+
 ## Outstanding verification
 
 These are real gates, not formalities. The sandbox this repository was authored

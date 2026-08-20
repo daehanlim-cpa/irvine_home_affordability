@@ -12,6 +12,11 @@
 -- Run as a role that can create databases (ACCOUNTADMIN or equivalent).
 -- =============================================================================
 
+-- SYSADMIN owns the database until 02_roles_grants.sql transfers ownership to
+-- IHA_ADMIN. Named explicitly rather than relying on whatever role the session
+-- happens to be using.
+USE ROLE SYSADMIN;
+
 CREATE DATABASE IF NOT EXISTS IRVINE_HOME_ANALYSIS
 COMMENT = 'Parcel-level buy-quality analysis for Irvine, CA. 90% public government data, 10% community sentiment.';
 
