@@ -97,6 +97,32 @@ else
 fi
 
 # --------------------------------------------------------------------------
+# 3a. Golden-address seed is in sync with its YAML source
+#     A generated file that has drifted from its source is worse than no
+#     generated file: the tests would assert against addresses nobody chose.
+# --------------------------------------------------------------------------
+if [ -f tests/fixtures/golden_addresses.yaml ]; then
+  if python3 -c 'import yaml' >/dev/null 2>&1; then
+    before="$(cat tests/seed_golden_addresses.sql 2>/dev/null || echo '')"
+    if gen_out="$(python3 scripts/gen_golden_seed.py 2>&1)"; then
+      after="$(cat tests/seed_golden_addresses.sql 2>/dev/null || echo '')"
+      if [ "$before" = "$after" ]; then
+        pass "golden-seed" "$(printf '%s' "$gen_out" | tail -1)"
+      else
+        fail "golden-seed" "tests/seed_golden_addresses.sql was stale and has been regenerated. Review and commit it."
+      fi
+    else
+      # Placeholder addresses still present is a real, actionable state.
+      skip "golden-seed" "$(printf '%s' "$gen_out" | head -2)"
+    fi
+  else
+    skip "golden-seed" "PyYAML not installed"
+  fi
+else
+  skip "golden-seed" "no fixture file"
+fi
+
+# --------------------------------------------------------------------------
 # 3b. Python unit tests (ingest logic: rate limiting, robots fail-closed,
 #     payload hashing). No Snowflake required, so they always run.
 # --------------------------------------------------------------------------

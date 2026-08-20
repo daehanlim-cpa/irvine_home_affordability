@@ -74,6 +74,13 @@ run_file() {
 # --- collect files in dependency order ---------------------------------------
 mapfile -t FILES < <(find snowflake -name '*.sql' -type f | sort)
 
+# The golden-address seed runs after the app layer, because it resolves each
+# fixture through APP.FN_RESOLVE_ADDRESS — the product's own geocoder, so a
+# resolution regression shows up here rather than being hidden by hard-coded APNs.
+if [ -f tests/seed_golden_addresses.sql ]; then
+  FILES+=("tests/seed_golden_addresses.sql")
+fi
+
 if [ "$SETUP_ONLY" -eq 1 ]; then
   # 01-05 only: create the account objects, then STOP at the probe. Everything
   # downstream depends on what the probe reports, so running past it blind is
