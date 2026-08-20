@@ -1,0 +1,359 @@
+# =============================================================================
+# Source registry.
+#
+# Adding a source is a config entry plus (for non-ArcGIS shapes) an adapter.
+# scripts/verify.sh refuses to pass unless every entry carries rate_limit_rps,
+# daily_call_cap, and a compliance record — a source without a documented
+# robots/ToS/licence position does not ship.
+#
+# tier:  GOV_GIS | A_CIVIC | B_JOURNALISM | C_FORUM | D_REVIEW
+#        Drives MART.REF_SENTIMENT_SOURCES.credibility_weight for sentiment
+#        sources. Government feeds are facts, not sentiment, and carry no weight.
+#
+# phase: 1 = vertical slice, 2 = broaden. Phase-2 entries are enabled: false so
+#        the registry documents the full plan without ingesting anything yet.
+# =============================================================================
+
+defaults:
+  # Politeness floor applied to every source unless it overrides downward.
+  # Public agencies run these servers on public money; we do not hammer them.
+  rate_limit_rps: 2.0
+  timeout_seconds: 30
+  max_retries: 3
+  backoff_base_seconds: 2
+  user_agent_template: "IrvineHomeAnalysis/1.0 (+mailto:{contact})"
+
+sources:
+
+  # ===========================================================================
+  # Phase 1 — the vertical slice
+  # ===========================================================================
+
+  - name: irvine_address_points
+    kind: arcgis_feature_service
+    tier: GOV_GIS
+    phase: 1
+    enabled: true
+    url: https://gis.cityofirvine.org/arcgis/rest/services/ParcelClariti/FeatureServer
+    layer_hint: address points
+    raw_table: RAW.R_IRVINE_ADDRESS_POINTS
+    page_size: 2000
+    rate_limit_rps: 2.0
+    daily_call_cap: 500
+    refresh_cadence: monthly
+    purpose: >
+      The geocoder. Address string resolves to a parcel here, which is what makes
+      parcel-level Mello-Roos possible. No paid geocoding API is needed.
+    compliance:
+      robots_checked: pending_first_run
+      tos: "City of Irvine open data portal — public records, redistribution permitted."
+      licence: public-domain-government-record
+      pii: none
+      notes: >
+        Machine-readable public GIS. No authentication, no scraping. The adapter
+        still honours robots.txt for the host as a matter of policy.
+
+  - name: irvine_parcels_cfd
+    kind: arcgis_feature_service
+    tier: GOV_GIS
+    phase: 1
+    enabled: true
+    url: https://gis.cityofirvine.org/arcgis/rest/services/ParcelClariti/FeatureServer
+    layer_hint: parcels, IUSD CFD
+    raw_table: RAW.R_IRVINE_PARCELS_CFD
+    page_size: 2000
+    rate_limit_rps: 2.0
+    daily_call_cap: 500
+    refresh_cadence: monthly
+    purpose: >
+      Parcel geometry plus Community Facilities District membership. The cost
+      pillar's differentiator: CFD burden varies between adjacent phases of the
+      same tract, so this must never be aggregated above the parcel.
+    compliance:
+      robots_checked: pending_first_run
+      tos: "City of Irvine open data portal — public records."
+      licence: public-domain-government-record
+      pii: none
+      notes: >
+        Parcel records are public. Owner-name fields, if present, are dropped at
+        the staging layer — we analyse property, not people.
+
+  - name: irvine_cip_projects
+    kind: arcgis_feature_service
+    tier: GOV_GIS
+    phase: 1
+    enabled: true
+    url: https://gis.cityofirvine.org/arcgis/rest/services/CIP/FeatureServer
+    layer_hint: capital improvement projects
+    raw_table: RAW.R_IRVINE_CIP_PROJECTS
+    page_size: 1000
+    rate_limit_rps: 2.0
+    daily_call_cap: 300
+    refresh_cadence: weekly
+    purpose: >
+      Active capital projects — bike trails, bridges, streets, traffic signals,
+      parks. Primary input to the construction pillar, which carries the heaviest
+      weight at 0.32.
+    compliance:
+      robots_checked: pending_first_run
+      tos: "City of Irvine open data portal — public records."
+      licence: public-domain-government-record
+      pii: none
+
+  - name: irvine_development_projects
+    kind: arcgis_feature_service
+    tier: GOV_GIS
+    phase: 1
+    enabled: true
+    url: https://gis.cityofirvine.org/arcgis/rest/services/DevelopmentProjects/FeatureServer
+    layer_hint: development projects, pending applications
+    raw_table: RAW.R_IRVINE_DEV_PROJECTS
+    page_size: 1000
+    rate_limit_rps: 2.0
+    daily_call_cap: 300
+    refresh_cadence: weekly
+    purpose: >
+      Approved and pending private development. Forward-looking half of the
+      construction pillar: the approved five-storey mixed-use across the street
+      is exactly what a buyer would want to have known.
+    compliance:
+      robots_checked: pending_first_run
+      tos: "City of Irvine open data portal — public records."
+      licence: public-domain-government-record
+      pii: none
+
+  - name: irvine_granicus_minutes
+    kind: granicus
+    tier: A_CIVIC
+    phase: 1
+    enabled: true
+    url: https://irvine.granicus.com/ViewPublisher.php?view_id=81
+    raw_table: RAW.R_CIVIC_MINUTES
+    rate_limit_rps: 0.2          # one request per 5s
+    daily_call_cap: 200
+    refresh_cadence: daily
+    credibility_weight: 1.00     # highest-trust sentiment source
+    purpose: >
+      City Council and Planning Commission agendas and minutes. The single best
+      sentiment source in Irvine and effectively unmined: residents testify on
+      the record about the specific project next to a given parcel. Doubles as
+      construction intelligence.
+    compliance:
+      robots_checked: pending_first_run
+      tos: "Public meeting records under the Ralph M. Brown Act."
+      licence: public-record
+      pii: >
+        Speaker names appear in minutes. Names are NOT stored — the adapter keeps
+        statement text, meeting date, agenda item, and project reference only.
+      notes: >
+        Rate limited well below the default. These are public records but
+        Granicus is a shared vendor platform; 0.2 rps is courteous.
+
+  - name: voice_of_oc
+    kind: rss
+    tier: B_JOURNALISM
+    phase: 1
+    enabled: true
+    url: https://voiceofoc.org/feed/
+    raw_table: RAW.R_NEWS_ARTICLES
+    rate_limit_rps: 0.5
+    daily_call_cap: 100
+    refresh_cadence: daily
+    credibility_weight: 0.85
+    purpose: >
+      Nonprofit investigative outlet covering Orange County government. Best
+      early source for lawsuits, AQMD violations, and council votes.
+    compliance:
+      robots_checked: pending_first_run
+      tos: "Public RSS feed intended for syndication."
+      licence: fair-use-excerpt
+      pii: none
+      notes: >
+        Headline, link, publication date, and summary only. Full article text is
+        not stored or redistributed; the report links back to the source.
+
+  # ===========================================================================
+  # Phase 2 — broaden. Documented now, ingested later.
+  # ===========================================================================
+
+  - name: northwood_howler
+    kind: rss
+    tier: B_JOURNALISM
+    phase: 2
+    enabled: false
+    url: https://thehowleronline.org/feed/
+    raw_table: RAW.R_NEWS_ARTICLES
+    rate_limit_rps: 0.5
+    daily_call_cap: 50
+    refresh_cadence: daily
+    credibility_weight: 0.70
+    purpose: >
+      Northwood High School's student paper, which broke the All American Asphalt
+      story. Hyperlocal student journalism consistently beats regional outlets on
+      neighbourhood-level issues.
+    compliance:
+      robots_checked: pending_first_run
+      tos: "Public RSS feed."
+      licence: fair-use-excerpt
+      pii: >
+        Student journalism — bylines are minors in some cases. Author names are
+        never stored.
+
+  - name: irvine_watchdog
+    kind: rss
+    tier: B_JOURNALISM
+    phase: 2
+    enabled: false
+    url: https://irvinewatchdog.org/feed/
+    raw_table: RAW.R_NEWS_ARTICLES
+    rate_limit_rps: 0.5
+    daily_call_cap: 50
+    refresh_cadence: daily
+    credibility_weight: 0.65
+    purpose: Resident-run civic watchdog. Advocacy voice — weighted accordingly.
+    compliance:
+      robots_checked: pending_first_run
+      tos: "Public RSS feed."
+      licence: fair-use-excerpt
+      pii: none
+
+  - name: talkirvine
+    kind: forum_xenforo
+    tier: C_FORUM
+    phase: 2
+    enabled: false
+    url: https://www.talkirvine.com
+    raw_table: RAW.R_FORUM_POSTS
+    rate_limit_rps: 0.2          # one request per 5s
+    daily_call_cap: 300
+    refresh_cadence: daily
+    credibility_weight: 0.45
+    purpose: >
+      Dedicated Irvine homeowner forum, unusually on-topic. Village-level signal
+      on traffic, construction, HOA, and schools.
+    compliance:
+      robots_checked: BLOCKING_GATE
+      tos: UNVERIFIED
+      licence: unknown
+      pii: >
+        Usernames are never stored. Post text, thread URL, timestamp, and village
+        tag only.
+      notes: >
+        HARD GATE. This source stays disabled until robots.txt has been fetched
+        and honoured and the ToS read. If crawling is disallowed the sentiment
+        blend simply renormalises without it — no source is load-bearing.
+
+  - name: city_data_forum
+    kind: forum_generic
+    tier: C_FORUM
+    phase: 2
+    enabled: false
+    url: https://www.city-data.com/forum/orange-county/
+    raw_table: RAW.R_FORUM_POSTS
+    rate_limit_rps: 0.2
+    daily_call_cap: 200
+    refresh_cadence: weekly
+    credibility_weight: 0.35
+    purpose: Long-lived village-level threads, useful for historical context.
+    compliance:
+      robots_checked: BLOCKING_GATE
+      tos: UNVERIFIED
+      licence: unknown
+      pii: usernames never stored
+
+  - name: youtube_neighborhood_tours
+    kind: youtube_api
+    tier: C_FORUM
+    phase: 2
+    enabled: false
+    url: https://www.googleapis.com/youtube/v3/commentThreads
+    raw_table: RAW.R_VIDEO_COMMENTS
+    secret: SEC_YOUTUBE_API_KEY
+    rate_limit_rps: 1.0
+    daily_call_cap: 400          # well inside the free 10k units/day quota
+    refresh_cadence: weekly
+    credibility_weight: 0.30
+    purpose: >
+      Comments on Irvine neighbourhood tour videos. Official API, free quota,
+      unusually candid, and nobody mines it.
+    compliance:
+      robots_checked: n/a_official_api
+      tos: "YouTube Data API Terms of Service — official API, keyed access."
+      licence: api-terms
+      pii: >
+        Commenter display names are returned by the API and are discarded on
+        ingest. Comment text and video ID only.
+
+  - name: census_acs_blockgroup
+    kind: census_api
+    tier: GOV_GIS
+    phase: 2
+    enabled: false
+    url: https://api.census.gov/data/2023/acs/acs5
+    secret: SEC_CENSUS_API_KEY
+    raw_table: RAW.R_ACS_BLOCKGROUP
+    rate_limit_rps: 2.0
+    daily_call_cap: 200
+    refresh_cadence: annual
+    purpose: >
+      Block-group demographic context. Included at the client's explicit
+      direction; see docs/compliance.md for the Fair Housing posture and the
+      recommendation that counsel review the public-facing report before launch.
+    compliance:
+      robots_checked: n/a_official_api
+      tos: "US Census Bureau API terms — public data, keyed access."
+      licence: public-domain-government-record
+      pii: none_aggregated
+
+  - name: irvine_pd_crime
+    kind: arcgis_feature_service
+    tier: GOV_GIS
+    phase: 2
+    enabled: false
+    url: https://city-of-irvine-police-neighborhood-watch-program-cityofirvine.hub.arcgis.com
+    raw_table: RAW.R_CRIME_INCIDENTS
+    page_size: 1000
+    rate_limit_rps: 1.0
+    daily_call_cap: 200
+    refresh_cadence: weekly
+    purpose: >
+      Irvine PD incident data from the department's own ArcGIS Hub. Included at
+      the client's explicit direction; same Fair Housing note as above.
+    compliance:
+      robots_checked: pending_first_run
+      tos: "Irvine PD open data portal — public records."
+      licence: public-domain-government-record
+      pii: >
+        Incident-level records may carry block-level addresses. Aggregated to
+        village at the staging layer; never joined to a specific parcel.
+
+# =============================================================================
+# Deliberately excluded, with the condition that would reopen the decision.
+# Recorded here so the reasoning survives the person who made it.
+# =============================================================================
+excluded:
+  - name: reddit
+    reason: >
+      Commercial use requires written approval (2–4 week review, not guaranteed)
+      and runs roughly $12k/month. Excluded on economics, not policy.
+    revisit_when: >
+      Monthly revenue makes a five-figure data licence rational, or Reddit
+      introduces a small-business tier.
+
+  - name: nextdoor
+    reason: Terms of service prohibit scraping. No API path for this use case.
+    revisit_when: Nextdoor publishes a public API with terms permitting this use.
+
+  - name: facebook_groups
+    reason: Private groups; ToS prohibits collection. Consent is absent.
+    revisit_when: Never, absent an explicit partnership.
+
+  - name: twitter_x
+    reason: API pricing disproportionate to the signal available for one city.
+    revisit_when: Pricing changes materially.
+
+  - name: zillow_redfin_listings
+    reason: >
+      ToS prohibits scraping listing data. Also unnecessary — the product's value
+      is the public-record join those sites do not perform.
+    revisit_when: A licensed MLS/IDX feed is obtained through a brokerage.

@@ -1,0 +1,106 @@
+# =============================================================================
+# Golden addresses: regression fixtures with known ground truth.
+#
+# These are the tests that actually matter. Unit tests prove the arithmetic is
+# self-consistent; these prove the arithmetic is RIGHT, by checking it against
+# Irvine homes whose characteristics a local professional already knows.
+#
+# The assertions are deliberately about ORDERING and BANDS rather than exact
+# scores. "Woodbridge has materially lower cost burden than Great Park" stays
+# true across weight tuning; "Woodbridge scores 87.3" does not, and would make
+# every legitimate tuning change look like a regression.
+#
+# BEFORE FIRST RUN: replace the placeholder addresses with real ones you know.
+# The expectations below are what the public record should show; if a real
+# address contradicts one, that is a finding about the data, not a broken test.
+# =============================================================================
+
+golden_addresses:
+
+  - id: woodbridge_no_cfd
+    address: "<REPLACE: a Woodbridge street address you know>"
+    village_expected: WOODBRIDGE
+    rationale: >
+      Woodbridge was platted in the 1970s-80s, before CFD financing became
+      standard. Parcels there should carry no Mello-Roos, which is the single
+      clearest cost-pillar signal available.
+    expect:
+      cost_burden_band: [NO_SPECIAL_ASSESSMENTS, HOA_ONLY]
+      cfd_annual_tax_max: 500
+      cost_subscore_min: 75
+
+  - id: great_park_high_cfd
+    address: "<REPLACE: a Great Park Neighborhoods address you know>"
+    village_expected: GREAT_PARK
+    rationale: >
+      Newest large development, on the former El Toro base. Should show a
+      substantial special tax with a long remaining term, and active nearby
+      construction. If this parcel shows no CFD, the parcel feed is wrong.
+    expect:
+      cost_burden_band: [MODERATE_CFD, HIGH_CFD]
+      cfd_annual_tax_min: 1500
+      cfd_years_remaining_min: 5
+      construction_projects_min: 1
+
+  - id: orchard_hills_environment
+    address: "<REPLACE: an Orchard Hills address you know>"
+    village_expected: ORCHARD_HILLS
+    rationale: >
+      The village at the centre of the All American Asphalt odour dispute —
+      800+ AQMD complaints, litigation by 2,000+ homeowners, and a City-mandated
+      buyer disclosure. Once Phase 2 lands AQMD data, this address must surface
+      that as a top negative finding. Until then the assertion is only that the
+      parcel resolves and scores; the environment expectation is marked pending
+      so the test does not silently pass for the wrong reason.
+    expect:
+      cost_burden_band: [MODERATE_CFD, HIGH_CFD]
+    expect_pending_phase_2:
+      environment_top_finding_contains: asphalt
+
+  - id: northwood_established
+    address: "<REPLACE: a Northwood street address you know>"
+    village_expected: NORTHWOOD
+    rationale: >
+      Established 1970s-90s village, mature, generally no Mello-Roos. Should
+      score well on cost and show little active construction — the profile of a
+      settled neighbourhood.
+    expect:
+      cost_burden_band: [NO_SPECIAL_ASSESSMENTS, HOA_ONLY, LOW_CFD]
+      cost_subscore_min: 70
+
+  - id: portola_springs_high_cfd
+    address: "<REPLACE: a Portola Springs address you know>"
+    village_expected: PORTOLA_SPRINGS
+    rationale: >
+      Among the highest CFD burdens in the city. Included alongside Great Park so
+      the cost pillar is exercised on two independent high-burden villages rather
+      than one.
+    expect:
+      cost_burden_band: [MODERATE_CFD, HIGH_CFD]
+      cfd_annual_tax_min: 1500
+
+# ---------------------------------------------------------------------------
+# Cross-address invariants. These hold regardless of weight tuning and are the
+# real regression surface: they encode relationships a local professional would
+# recognise as obviously true.
+# ---------------------------------------------------------------------------
+invariants:
+  - id: older_villages_cost_less
+    description: >
+      Cost-burden subscore for the Woodbridge and Northwood parcels must exceed
+      the Great Park and Portola Springs parcels. If this ever inverts, either
+      the CFD data is wrong or the cost pillar has been mis-tuned.
+    assert: min(woodbridge_no_cfd, northwood_established) > max(great_park_high_cfd, portola_springs_high_cfd)
+    metric: cost_subscore
+
+  - id: score_is_reproducible
+    description: >
+      Scoring the same parcel twice on unchanged data must produce an identical
+      composite. This is what proves no LLM output reached the arithmetic.
+    assert: identical_across_runs
+    metric: composite_score
+
+  - id: no_pillar_exceeds_bounds
+    description: Every subscore must lie within 0..100 for every golden address.
+    assert: all_subscores_in_range
+    metric: all

@@ -110,10 +110,19 @@ fi
 # --------------------------------------------------------------- crawl policy
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-printf 'import requests\nrequests.get(url)\n' > "$TMP/bad_crawler.py"
-printf 'import urllib.robotparser\nUSER_AGENT="x"\nrp=urllib.robotparser.RobotFileParser()\nrp.can_fetch(USER_AGENT,url)\n' > "$TMP/good_crawler.py"
-assert_warns "crawler without robots" post_edit.sh "{\"tool_input\":{\"file_path\":\"$TMP/bad_crawler.py\"}}" "robots.txt"
-assert_allow "crawler with robots"    post_edit.sh "{\"tool_input\":{\"file_path\":\"$TMP/good_crawler.py\"}}"
+mkdir -p "$TMP/adapters"
+printf 'import urllib.request\nurllib.request.urlopen(url)\n' > "$TMP/adapters/bad_crawler.py"
+printf 'import urllib.robotparser\nimport urllib.request\nUSER_AGENT="x"\nrp=urllib.robotparser.RobotFileParser()\nrp.can_fetch(USER_AGENT,url)\nurllib.request.urlopen(url)\n' > "$TMP/adapters/good_crawler.py"
+# Compliance centralised in a base class is better design than copied into every
+# adapter, so the check must accept inheritance. [review]
+printf 'from base import SentimentAdapter\nimport urllib.request\nclass X(SentimentAdapter):\n    pass\n' > "$TMP/adapters/inherits.py"
+# A module that opens no connection is not a crawler and must not be flagged.
+printf 'ALIASES = {"Woodbridge": "WOODBRIDGE"}\n' > "$TMP/adapters/pure_data.py"
+
+assert_warns "fetcher without robots"   post_edit.sh "{\"tool_input\":{\"file_path\":\"$TMP/adapters/bad_crawler.py\"}}" "robots.txt"
+assert_allow "fetcher with robots"      post_edit.sh "{\"tool_input\":{\"file_path\":\"$TMP/adapters/good_crawler.py\"}}"
+assert_allow "inherited compliance"     post_edit.sh "{\"tool_input\":{\"file_path\":\"$TMP/adapters/inherits.py\"}}"
+assert_allow "pure data module"         post_edit.sh "{\"tool_input\":{\"file_path\":\"$TMP/adapters/pure_data.py\"}}"
 
 echo "  hooks: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

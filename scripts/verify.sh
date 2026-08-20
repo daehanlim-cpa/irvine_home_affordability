@@ -97,6 +97,24 @@ else
 fi
 
 # --------------------------------------------------------------------------
+# 3b. Python unit tests (ingest logic: rate limiting, robots fail-closed,
+#     payload hashing). No Snowflake required, so they always run.
+# --------------------------------------------------------------------------
+if python3 -c 'import pytest' >/dev/null 2>&1; then
+  if find tests -name 'test_*.py' -type f 2>/dev/null | head -1 | grep -q .; then
+    if out="$(python3 -m pytest tests/ -q 2>&1)"; then
+      pass "python-tests" "$(printf '%s' "$out" | tail -1)"
+    else
+      fail "python-tests" "$(printf '%s' "$out" | tail -12)"
+    fi
+  else
+    skip "python-tests" "no tests/test_*.py yet"
+  fi
+else
+  skip "python-tests" "pytest not installed (pip install -r requirements-dev.txt)"
+fi
+
+# --------------------------------------------------------------------------
 # 4. CLAUDE.md stays concise
 #    The rule "adding a learning means pruning one" is only real if something
 #    enforces the cap.
@@ -157,12 +175,17 @@ fi
 #    groundedness, and per-request cost. These spend credits, so --fast skips
 #    them deliberately rather than by accident.
 # --------------------------------------------------------------------------
+# Each entry runs a script that must SELECT its results. Pointing a check at a
+# file that only creates objects makes it pass vacuously — the check reports
+# green while asserting nothing, which is worse than not having it. The
+# assertion scripts below are generated at run time so each check actually
+# queries its gate view.
 SF_CHECKS=(
   "cortex-probe:snowflake/00_setup/05_cortex_probe.sql"
-  "golden-addresses:tests/test_scoring.sql"
-  "score-reproducibility:tests/test_scoring.sql"
-  "groundedness:snowflake/40_cortex/ai_observability_evals.sql"
-  "cost-regression:snowflake/70_ops/vw_cortex_spend.sql"
+  "golden-addresses:__ASSERT__SELECT CHECK_NAME, STATUS, DETAIL FROM MART.VW_SCORING_TESTS;"
+  "score-reproducibility:__ASSERT__CALL MART.SP_TEST_REPRODUCIBILITY();"
+  "groundedness:__ASSERT__CALL MART.SP_EVALUATE_NARRATIVES(); SELECT METRIC_NAME, STATUS, DETAIL FROM MART.VW_EVAL_GATE;"
+  "cost-regression:__ASSERT__SELECT THRESHOLD_NAME, IFF(IS_BREACHED, 'FAIL', 'PASS') AS STATUS, 'credits=' || CREDITS_USED FROM OPS.VW_SPEND_VS_THRESHOLD;"
 )
 
 # Resolve HOW SQL is executed. requirements-dev.txt pins the connector but not
@@ -200,10 +223,21 @@ elif ! sf_available; then
 else
   for c in "${SF_CHECKS[@]}"; do
     name="${c%%:*}"; script="${c#*:}"
-    if [ ! -f "$script" ]; then
-      skip "$name" "$script not created yet"
-      continue
-    fi
+    cleanup_sql=""
+    case "$script" in
+      __ASSERT__*)
+        # Materialise the assertion into a temp file so sf_exec can run it.
+        cleanup_sql="$(mktemp "${TMPDIR:-/tmp}/iha_assert_XXXXXX.sql")"
+        printf '%s\n' "${script#__ASSERT__}" > "$cleanup_sql"
+        script="$cleanup_sql"
+        ;;
+      *)
+        if [ ! -f "$script" ]; then
+          skip "$name" "$script not created yet"
+          continue
+        fi
+        ;;
+    esac
     if out="$(sf_exec "$script")"; then
       if printf '%s' "$out" | grep -qiE '\bFAIL\b'; then
         fail "$name" "$(printf '%s' "$out" | grep -iE '\bFAIL\b' | head -5)"
@@ -213,6 +247,7 @@ else
     else
       fail "$name" "$(printf '%s' "$out" | tail -5)"
     fi
+    [ -n "$cleanup_sql" ] && rm -f "$cleanup_sql"
   done
 fi
 

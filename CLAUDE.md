@@ -92,6 +92,21 @@ sprawls stops being read.
 - A test fixture must not trip the repo's own secret scan. Build sensitive literals by
   concatenation at runtime so the pattern never appears in the file.
 
+**Scoring correctness** (each found by review, each would have shipped silently):
+- A pillar with **no rows is not a missing pillar**. Aggregate from `DIM_PARCEL`
+  with a LEFT JOIN — a parcel with no nearby projects should score 100 on
+  construction, not drop the 0.32 weight as "not assessed".
+- **Never `COALESCE` an unpublished figure to zero.** "No Mello-Roos recorded"
+  and "the layer published no amount" are different claims, and telling a buyer
+  the first when the truth is the second is the worst error this product can make.
+- A gate check must **SELECT its assertion**. Pointing one at a file that only
+  creates objects passes vacuously — green while asserting nothing.
+- Quota limits must **default when the config row is missing**. A NULL limit makes
+  the comparison NULL, the branch never fires, and rate limiting silently vanishes.
+- PII redaction needs **span-level** decisions, not word-level. Deciding "is this
+  a place?" per word let a calendar word excuse a real surname; deciding per span
+  keeps "Sand Canyon" and drops "Susan May".
+
 **Snowflake gotchas** (each cost a broken deploy):
 - `GRANT OWNERSHIP ON DATABASE` does **not** cascade to schemas. Grant
   `ON ALL SCHEMAS IN DATABASE` too, or the next `GRANT ... ON SCHEMA` fails.
@@ -103,15 +118,15 @@ sprawls stops being read.
   budget silently monitors nothing.
 - Database roles do not inherit upward: granting `USAGE_VIEWER` to `IHA_ADMIN` does nothing
   for `IHA_ENGINEER`. Grant to the role that actually runs the query.
-- `CORTEX_MODELS_ALLOWLIST` is **deprecated**. Govern models via `SNOWFLAKE.CORTEX_USER` role
-  grants plus pinned names in `MART.REF_CORTEX_MODELS`.
+- `CORTEX_MODELS_ALLOWLIST` is **deprecated**; govern via `SNOWFLAKE.CORTEX_USER` grants
+  plus pinned names in `MART.REF_CORTEX_MODELS`.
 - Data Metric Functions need **Enterprise Edition**. `05_cortex_probe.sql` reports it; on
   Standard, freshness falls back to a scheduled task writing to `OPS`.
 - Mello-Roos/CFD varies **parcel by parcel**, not by village — adjacent phases of one tract
   differ by thousands/yr. Never aggregate cost burden above the parcel.
 - Reddit is excluded on **economics**, not policy: commercial use needs approval (2–4 wks,
   not guaranteed) at ~$12k/mo. Revisit at scale.
-- Irvine publishes agendas/minutes via **Granicus** (`irvine.granicus.com`) — structured and
-  predictable. It is simultaneously the best sentiment source and construction intel.
-- `CORTEX_AI_FUNCTIONS_USAGE_HISTORY` (GA Mar 2026) has ~5min latency — cost checks that read
-  it immediately after a query will see nothing. Poll with backoff.
+- `CORTEX_AI_FUNCTIONS_USAGE_HISTORY` has ~5min latency — cost checks reading it immediately
+  after a query see nothing. Poll with backoff.
+- `URL`, `USAGE`, `TASK`, `QUERIES`, `CACHE`, `EMAIL`, `PROJECTS`, `TOKEN` are **reserved**
+  in the Snowflake dialect. Name columns around them.
